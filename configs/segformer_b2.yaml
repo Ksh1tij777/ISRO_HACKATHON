@@ -1,0 +1,29 @@
+model:
+  name: nvidia/segformer-b2-finetuned-ade-512-512
+  num_labels: 2
+
+data:
+  # Real paired-tile path (deeper than blueprint's data/deepglobe/train).
+  root_dir: data/deepglobe/train/archive/train
+  image_size: 512
+  batch_size: 4        # 4 (not 8) for RTX 4060 8GiB; raise if VRAM allows
+  num_workers: 4
+
+optim:
+  lr: 6.0e-5
+  weight_decay: 1.0e-4
+  epochs: 40
+  warmup_ratio: 0.05
+  amp: true
+
+loss:
+  dice_weight: 0.5
+  bce_weight: 0.3
+  cldice_weight: 0.2
+  cldice_iters: 5
+
+logging:
+  out_dir: runs
+  log_every: 50
+  val_every_epoch: 1
+  save_best_metric: val_iou
