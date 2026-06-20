@@ -1,0 +1,27 @@
+# Data & model artifacts (never commit — large binaries)
+# Anchored to repo root so src/data/ (source code) is NOT ignored.
+/data/
+/runs/
+*.tif
+*.tiff
+*.pth
+*.pt
+*.graphml
+*.pkl
+*.pickle
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
