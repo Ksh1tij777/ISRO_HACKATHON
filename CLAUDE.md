@@ -33,7 +33,10 @@ which has identical shape/CRS.
 
 - City: Jaipur (Walled City + Raja Park + JLN Marg). BBox `[75.78, 26.85, 75.87, 26.95]`.
 - Input: `data/inference/jaipur/jaipur_s2_rgb.tif` (Sentinel-2 SR, 10 m/px, EPSG:3857).
-- Train data: DeepGlobe Road Extraction (6226 pairs, 0.5 m/px) → `data/deepglobe/train/`.
+- Train data: DeepGlobe Road Extraction (6226 paired tiles, 0.5 m/px). **Actual
+  paired-tile path is `data/deepglobe/train/archive/train`** (deeper than the
+  blueprint's `data/deepglobe/train`; `archive/valid` + `archive/test` have no
+  masks). Use this as `data.root_dir` in configs.
 
 ## Environment
 
