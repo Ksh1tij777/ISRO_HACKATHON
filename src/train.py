@@ -102,12 +102,13 @@ def train_one_epoch(model, train_dl, optimizer, scheduler, scaler, cfg, device, 
             running = 0.0
 
 
-def save_checkpoint(path, model, optimizer, epoch, metrics, cfg):
+def save_checkpoint(path, model, optimizer, epoch, metrics, cfg, best_iou):
     torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
-                "epoch": epoch, "metrics": metrics, "cfg": cfg}, path)
+                "epoch": epoch, "metrics": metrics, "cfg": cfg,
+                "best_iou": best_iou}, path)
 
 
-def main(cfg, tag, config_path, smoke=False):
+def main(cfg, tag, config_path, smoke=False, resume=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     out_dir = Path(cfg["logging"]["out_dir"]) / f"{datetime.now():%Y%m%d_%H%M%S}_{tag}"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -140,15 +141,28 @@ def main(cfg, tag, config_path, smoke=False):
     scaler = torch.amp.GradScaler("cuda", enabled=cfg["optim"]["amp"])
 
     best_iou = 0.0
-    for epoch in range(cfg["optim"]["epochs"]):
+    start_epoch = 0
+    if resume:
+        ckpt = torch.load(resume, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model"])
+        optimizer.load_state_dict(ckpt["optimizer"])
+        start_epoch = ckpt["epoch"] + 1
+        best_iou = ckpt.get("best_iou", ckpt.get("metrics", {}).get("iou", 0.0))
+        # fast-forward the LR schedule to where we left off
+        for _ in range(start_epoch * len(train_dl)):
+            scheduler.step()
+        log.info(f"resumed from {resume}: starting epoch {start_epoch}, "
+                 f"best_iou={best_iou:.4f}")
+
+    for epoch in range(start_epoch, cfg["optim"]["epochs"]):
         train_one_epoch(model, train_dl, optimizer, scheduler, scaler, cfg, device, epoch)
         metrics = validate(model, val_dl, device)
         log.info(f"== epoch {epoch} val: iou={metrics['iou']:.4f} dice={metrics['dice']:.4f}")
         if metrics["iou"] > best_iou:
             best_iou = metrics["iou"]
-            save_checkpoint(out_dir / "best.pth", model, optimizer, epoch, metrics, cfg)
+            save_checkpoint(out_dir / "best.pth", model, optimizer, epoch, metrics, cfg, best_iou)
             log.info(f"  new best iou={best_iou:.4f} -> best.pth")
-        save_checkpoint(out_dir / "last.pth", model, optimizer, epoch, metrics, cfg)
+        save_checkpoint(out_dir / "last.pth", model, optimizer, epoch, metrics, cfg, best_iou)
     log.info(f"done. best val iou={best_iou:.4f}")
     return best_iou
 
@@ -159,6 +173,8 @@ def parse_args():
     ap.add_argument("--tag", required=True)
     ap.add_argument("--smoke", action="store_true",
                     help="1 epoch on a 100-sample subset to verify the loop")
+    ap.add_argument("--resume", default=None,
+                    help="path to last.pth to continue training from")
     return ap.parse_args()
 
 
@@ -166,4 +182,4 @@ if __name__ == "__main__":
     args = parse_args()
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
-    main(cfg, args.tag, args.config, smoke=args.smoke)
+    main(cfg, args.tag, args.config, smoke=args.smoke, resume=args.resume)
