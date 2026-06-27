@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 
+import cv2
 import numpy as np
 import rasterio
 import torch
@@ -63,12 +64,24 @@ def make_blend_kernel(size: int) -> np.ndarray:
 
 
 def infer_large_image(model, image_path, output_path, tile_size=512, overlap=64,
-                      batch_size=4, device="cuda"):
+                      batch_size=4, device="cuda", upscale=1):
     with rasterio.open(image_path) as src:
         img = src.read().astype(np.float32)  # (3, H, W)
         profile = src.profile
 
     img_u8, valid = stretch_to_uint8(img)
+    H0, W0 = img_u8.shape[-2:]  # native size (output is written at this size)
+
+    # Scale-matching for low-res input (e.g. Sentinel-2 10 m/px): upsampling so
+    # roads occupy a pixel-width closer to the model's training data improves
+    # recall. It adds no information, only rescales feature size. x4 is a good
+    # default for S2; x6+ over-zooms and the model loses big-road context.
+    if upscale != 1:
+        img_u8 = np.stack([
+            cv2.resize(img_u8[c], (W0 * upscale, H0 * upscale),
+                       interpolation=cv2.INTER_CUBIC)
+            for c in range(3)
+        ])
     H, W = img_u8.shape[-2:]
     stride = tile_size - overlap
 
@@ -100,6 +113,8 @@ def infer_large_image(model, image_path, output_path, tile_size=512, overlap=64,
             weight[y:y2, x:x2] += kernel[:h, :w]
 
     canvas /= np.clip(weight, 1e-6, None)
+    if upscale != 1:  # bring probability map back to native resolution
+        canvas = cv2.resize(canvas, (W0, H0), interpolation=cv2.INTER_AREA)
     binary = (canvas > 0.5).astype(np.uint8)
     binary[~valid] = 0  # nodata -> background, never spurious road
 
@@ -130,6 +145,9 @@ def parse_args():
     ap.add_argument("--tile-size", type=int, default=512)
     ap.add_argument("--overlap", type=int, default=64)
     ap.add_argument("--batch-size", type=int, default=4)
+    ap.add_argument("--upscale", type=int, default=1,
+                    help="upsample factor before inference (4 recommended for "
+                         "Sentinel-2 10m/px; scale-matches roads to training data)")
     return ap.parse_args()
 
 
@@ -138,4 +156,4 @@ if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = load_model(args.checkpoint, device)
     infer_large_image(model, args.input, args.output, args.tile_size,
-                      args.overlap, args.batch_size, device)
+                      args.overlap, args.batch_size, device, args.upscale)
