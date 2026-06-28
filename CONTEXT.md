@@ -108,6 +108,23 @@ python -m src.inference \
 
 ---
 
+## 6b. Sensor / resolution strategy (IMPORTANT)
+
+- **OSM is ground-truth/benchmark ONLY** — used as training labels and for the
+  Topological-Accuracy eval. It is NEVER fed in as the road network (that would
+  be circular and against the rules).
+- **Resolution matters more than the model.** The DeepGlobe-trained model is built
+  for high-res (~0.5 m). On **Sentinel-2 (10 m)** roads are ~1 px, so extraction is
+  sparse — this is a property of the data, not a model failure. The challenge
+  provides better imagery: **LISS-IV (5.8 m, open)** and **Cartosat-3 (high-res,
+  given during the event for evaluation)**. Run the demo on those.
+- **Switching sensors = swap the .tif**, no retraining. `src/inference.py` now
+  supports per-sensor input handling:
+  - `--upscale N` — only needed for coarse input (use 4 for S2, 1 for hi-res).
+  - `--bands a,b,c` — map sensor bands into the model's RGB slots. S2 RGB = default
+    `1,2,3`. LISS-IV is G/R/NIR (no blue) -> pick a false-colour mapping.
+    Panchromatic (1 band) is auto-replicated to 3.
+
 ## 7. Environment
 
 Python 3.12, torch 2.11.0+cu128, **RTX 4060 Laptop (8 GiB)**, CUDA OK.

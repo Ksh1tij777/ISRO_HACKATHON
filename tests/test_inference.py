@@ -8,7 +8,30 @@ import rasterio
 import torch
 from rasterio.transform import from_bounds
 
-from src.inference import (stretch_to_uint8, make_blend_kernel, infer_large_image)
+import pytest
+
+from src.inference import (stretch_to_uint8, make_blend_kernel, infer_large_image,
+                           select_bands)
+
+
+def test_select_bands_default_and_reorder():
+    img = np.arange(4 * 2 * 2, dtype=np.float32).reshape(4, 2, 2)  # 4 bands
+    assert select_bands(img).shape == (3, 2, 2)                    # first 3
+    np.testing.assert_array_equal(select_bands(img, [3, 2, 1])[0], img[2])  # reorder
+
+
+def test_select_bands_panchromatic():
+    pan = np.ones((1, 5, 5), dtype=np.float32)
+    out = select_bands(pan)                # 1 band -> replicated to 3
+    assert out.shape == (3, 5, 5)
+
+
+def test_select_bands_errors():
+    img = np.zeros((3, 2, 2), dtype=np.float32)
+    with pytest.raises(ValueError):
+        select_bands(img, [1, 2])          # wrong count
+    with pytest.raises(ValueError):
+        select_bands(img, [1, 2, 9])       # out of range
 
 
 def test_stretch_handles_nan():

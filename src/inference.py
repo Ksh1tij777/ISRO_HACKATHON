@@ -63,12 +63,34 @@ def make_blend_kernel(size: int) -> np.ndarray:
     return np.clip(k, 1e-3, None)
 
 
+def select_bands(img: np.ndarray, bands=None) -> np.ndarray:
+    """Map a sensor's bands into the model's 3 RGB-like input channels.
+
+    The model expects RGB, but sensors differ:
+    - Sentinel-2 RGB  -> bands 1,2,3 (default)
+    - LISS-IV (G,R,NIR, no blue) -> e.g. --bands 2,1,1 or 3,2,1 (false colour)
+    - Cartosat-3 panchromatic (1 band) -> auto-replicated to 3 channels
+
+    bands: list of 1-indexed band numbers (length 3), or None for first 3.
+    """
+    C = img.shape[0]
+    if bands is None:
+        bands = [1, 2, 3] if C >= 3 else [1, 1, 1]  # panchromatic -> replicate
+    if len(bands) != 3:
+        raise ValueError(f"--bands needs exactly 3 values, got {bands}")
+    idx = [b - 1 for b in bands]
+    if max(idx) >= C:
+        raise ValueError(f"band index {max(idx)+1} out of range (image has {C} bands)")
+    return np.stack([img[i] for i in idx])
+
+
 def infer_large_image(model, image_path, output_path, tile_size=512, overlap=64,
-                      batch_size=4, device="cuda", upscale=1):
+                      batch_size=4, device="cuda", upscale=1, bands=None):
     with rasterio.open(image_path) as src:
-        img = src.read().astype(np.float32)  # (3, H, W)
+        img = src.read().astype(np.float32)  # (C, H, W)
         profile = src.profile
 
+    img = select_bands(img, bands)  # -> (3, H, W) in RGB order
     img_u8, valid = stretch_to_uint8(img)
     H0, W0 = img_u8.shape[-2:]  # native size (output is written at this size)
 
@@ -148,12 +170,17 @@ def parse_args():
     ap.add_argument("--upscale", type=int, default=1,
                     help="upsample factor before inference (4 recommended for "
                          "Sentinel-2 10m/px; scale-matches roads to training data)")
+    ap.add_argument("--bands", default=None,
+                    help="comma-separated 1-indexed bands -> RGB slots "
+                         "(e.g. '3,2,1'). Default: first 3 bands; 1-band input "
+                         "is auto-replicated. Use for LISS-IV/Cartosat etc.")
     return ap.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
+    bands = [int(b) for b in args.bands.split(",")] if args.bands else None
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = load_model(args.checkpoint, device)
     infer_large_image(model, args.input, args.output, args.tile_size,
-                      args.overlap, args.batch_size, device, args.upscale)
+                      args.overlap, args.batch_size, device, args.upscale, bands)
