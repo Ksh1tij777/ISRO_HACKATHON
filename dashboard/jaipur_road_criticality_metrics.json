@@ -1,0 +1,41 @@
+{
+  "n_nodes": 8445,
+  "n_edges": 8207,
+  "graph_density": 0.00023,
+  "avg_degree": 1.944,
+  "n_components": 1142,
+  "pct_largest_comp": 59.67,
+  "n_bridges": 4500,
+  "avg_path_length_m": 12244259.5,
+  "n_healed_edges": 0,
+  "healing_rate_pct": 0.0,
+  "top5_damage_scores": [
+    0.0257,
+    0.0253,
+    0.0253,
+    0.0252,
+    0.0241
+  ],
+  "top5_edges": [
+    [
+      5161,
+      5223
+    ],
+    [
+      5223,
+      5279
+    ],
+    [
+      5279,
+      5358
+    ],
+    [
+      4999,
+      5060
+    ],
+    [
+      5301,
+      5303
+    ]
+  ]
+}
