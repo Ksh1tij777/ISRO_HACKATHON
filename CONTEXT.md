@@ -32,6 +32,21 @@ Occlusion-robust road extraction (CV) + graph-theoretic criticality analysis
 CV produces it; Graph consumes it. Until it's final, the graph half develops
 against `scripts/make_mock_mask.py` output (identical shape/CRS).
 
+### Available masks (in repo) — which to use
+
+| File | Source | CRS | Density | Use for |
+|---|---|---|---|---|
+| `predicted_mask.tif` | Sentinel-2 10 m | EPSG:4326 | sparse (arterials only) | the strict integration-contract file |
+| **`predicted_mask_fullcity.tif`** | **high-res ~1.2 m (proof-of-concept)** | **EPSG:3857** | **dense, full network** | **RECOMMENDED for graph dev + demo** |
+
+**Amrit: build against `predicted_mask_fullcity.tif`** — it's a dense, realistic
+city-wide network (skeletonize/heal/centrality will produce meaningful results,
+not artifacts of a sparse mask). Read CRS+transform *from the file* (it's 3857,
+not 4326). Both masks are uint8 {0,1}, LZW. The high-res one is from Esri
+basemap tiles (proof-of-concept that the model scales with resolution); the
+final submission will regenerate it from ISRO Cartosat-3/LISS-IV imagery via
+the same `src/inference.py` (no code change — see §6b).
+
 ---
 
 ## 3. Ownership
