@@ -17,6 +17,7 @@ tqdm>=4.66
 
 # --- Graph half (Amrit) ---
 networkx>=3.2
+sknw>=0.15        # skeleton -> NetworkX graph
 osmnx>=1.9
 geopandas>=0.14
 shapely>=2.0

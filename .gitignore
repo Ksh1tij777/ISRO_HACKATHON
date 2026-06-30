@@ -28,3 +28,9 @@ Thumbs.db
 
 # osmnx / tile download cache
 cache/
+
+# Office temp lock files + superseded deck drafts (keep only the Final deck)
+~$*
+/Route_Resilience_BAH2026_Idea.pptx
+/Route_Resilience_BAH2026_Idea_CLEAN.pptx
+/Route_Resilience_BAH2026_Pitch.pptx
