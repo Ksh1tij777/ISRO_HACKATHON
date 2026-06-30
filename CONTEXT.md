@@ -61,25 +61,40 @@ the same `src/inference.py` (no code change — see §6b).
 
 ---
 
-## 4. Current status (as of pause)
+## 4. Current status — BOTH HALVES DONE & INTEGRATED
 
-### CV half — Phases 1.1–1.7 BUILT & TESTED
-| Phase | Deliverable | Status |
-|---|---|---|
-| 1.1 | Dataset + occlusion augmentations | done, tested |
-| 1.2 | U-Net baseline | done (not yet trained for the comparison number) |
-| 1.3 | SegFormer wrapper | done, tested |
-| 1.4 | dice + bce + clDice losses | done, tested |
-| 1.5 | Training loop (+ `--resume`) | done; **training PAUSED at epoch 8** |
-| 1.6 | Eval metrics (incl. occlusion-recall) | done, tested |
-| 1.7 | Tiled Jaipur inference | done, tested (contract-compliant) |
+End-to-end pipeline works: satellite image -> road mask -> graph -> criticality
+-> live disaster console. Integrated on the **`integration`** branch (CV `main`
++ Amrit's `amrit/graph-pipeline` merged).
 
-- **Test suite: 15 passed, 1 skipped.**
-- **Best model so far:** epoch 8, **val IoU 0.4736 / Dice 0.6428**.
-- Checkpoints (local only, gitignored): `runs/20260622_020144_segformer_b2/{best,last}.pth`.
+### CV half (AA) — complete
+- Phases 1.1–1.7 built & tested (**test suite: 15 passed, 1 skipped**).
+- **Training trained to epoch 35** (converged): best **val IoU 0.5217 / Dice 0.6857**
+  (`runs/20260627_032356_segformer_b2/best.pth`, local/gitignored).
+- `src/inference.py` produces contract-compliant masks; supports `--upscale`,
+  `--bands` (multi-sensor). **Key finding:** accuracy scales with resolution —
+  Sentinel-2 (10 m) recovers only arterials (~12% recall); high-res (~1.2 m)
+  recovers the full network.
 
-### Graph half — Phase 2 NOT STARTED (Amrit)
-Skeleton->graph, healing, centrality/ablation, topo metrics, dashboard.
+### Graph half (Amrit) — complete (merged)
+- `src/graph/{pipeline,centrality,osm_heal,run}.py`, `src/eval/topo_metrics.py`,
+  `dashboard/build_map.py`. Skeleton -> graph -> Union-Find/MST healing ->
+  betweenness centrality + ablation -> Folium dashboard.
+- On the dense mask: 10 components, 98.9% in largest, 44 healed edges.
+- ⚠️ **Known bug in `src/graph/pipeline.py:_dist_m`** — applies `np.radians()`
+  AND `×111320`, so all distances (incl. `avg_path_length_m`) are **~57× too
+  small**. One-line fix: `(lat2-lat1)*111320` (drop the radians). Important for
+  the metrics table.
+
+### Integrated system (new)
+- **`dashboard/jaipur_console.html`** — self-contained Disaster Decision Console:
+  occlusion-robust roads -> graph -> **Route Survival Score**, survival-optimal
+  routing, **CartoDEM-driven multi-hazard sim** (flood / earthquake / landslide),
+  live resilience index + junctions/residents/hospitals cut off. No server.
+- `dashboard/jaipur_fullcity_criticality.html` — graph run on the dense mask.
+- `Route_Resilience_BAH2026_Final.pptx` — idea-submission deck (maps to the
+  official PUB template prompts). Diagrams in `results/diagram_*.png`.
+- New deps: `sknw` (graph), and dev-only: `python-pptx`, `selenium`, `matplotlib`.
 
 ---
 
@@ -105,6 +120,16 @@ python -m src.inference \
   --checkpoint runs/<run>/best.pth \
   --input  data/inference/jaipur/jaipur_s2_rgb.tif \
   --output data/inference/jaipur/predicted_mask.tif
+
+# run the graph half on a mask -> dashboard HTML + metrics JSON
+#   (needs sknw; PYTHONUTF8=1 avoids a Windows unicode-print crash;
+#    the graph code expects EPSG:4326 — reproject 3857 masks first)
+PYTHONUTF8=1 python -m src.graph.run \
+  --mask data/inference/jaipur/predicted_mask_fullcity_4326.tif \
+  --out  dashboard/jaipur_fullcity_criticality.html
+
+# open the live console (self-contained, no server)
+#   dashboard/jaipur_console.html  -> just open in a browser
 ```
 
 ---
@@ -149,16 +174,19 @@ Training: batch 4, ~5.8 min/epoch, full 40-epoch run ≈ 4h, peak VRAM ~3.7 GiB.
 
 ## 8. What's next
 
-**CV (AA):**
-1. Resume training to epoch 40 (one command above).
-2. Re-run inference with the final model -> hand `predicted_mask.tif` to Amrit.
-3. Train U-Net baseline briefly for the comparison number.
-4. Hand-annotate ~20 tiles' occluded regions for the occlusion-recall metric.
+**Code / correctness:**
+1. Fix the `_dist_m` 57× bug in `src/graph/pipeline.py` (graph half) and re-run
+   so the metrics table is accurate.
+2. Train the U-Net baseline briefly for the comparison number (IoU vs SegFormer).
+3. Occlusion-recall metric: hand-annotate ~20 tiles' occluded regions.
 
-**Graph (Amrit):**
-1. Build Phase 2.1–2.6 (mock mask -> graph -> heal -> centrality -> dashboard).
-2. Develop against `mock_mask.tif` until the real mask lands.
+**Demo / pitch:**
+1. Record a ~30 s GIF of `dashboard/jaipur_console.html` (flood slider, bridge
+   cut, survival routing) for slide 6 of the deck.
+2. Fill team name + 2 member rows in `Route_Resilience_BAH2026_Final.pptx`;
+   optionally render the Mermaid process/architecture diagrams in.
+3. On event day: re-run inference on **Cartosat-3 / LISS-IV** imagery (no code
+   change) for a high-res, indigenous-data demo.
 
-**Joint (Phase 3–4):**
-Integrate real mask, tune healing, build metrics tables + before/after visuals,
-5-slide deck, pre-recorded demo GIF.
+**Git:** work is on the **`integration`** branch. Open a PR to `main` when the
+team has reviewed (CV `main` history is currently clean / CV-only).
